@@ -1,0 +1,46 @@
+#Requires -Module Az.Accounts, Az.Websites
+
+# Connect to Azure if not already connected
+if (-not (Get-AzContext)) {
+    Connect-AzAccount
+}
+
+# Initialize results array
+$results = @()
+
+# Get all subscriptions
+$subscriptions = Get-AzSubscription
+
+foreach ($sub in $subscriptions) {
+    Set-AzContext -Subscription $sub.Id | Out-Null
+    
+    # Get all App Service Plans in the current subscription
+    $servicePlans = Get-AzAppServicePlan
+
+    foreach ($plan in $servicePlans) {
+        # Get web apps in the current service plan
+        $webApps = Get-AzWebApp -AppServicePlan $plan
+        
+        # Collect web app names
+        $appNames = $webApps.Name -join ";"
+        $appCount = $webApps.Count
+
+        # Create result object
+        $results += [PSCustomObject]@{
+            SubscriptionName   = $sub.Name
+            SubscriptionId     = $sub.Id
+            AppServicePlanName = $plan.Name
+            ResourceGroup      = $plan.ResourceGroup
+            Location           = $plan.Location
+            Tier               = $plan.Sku.Tier
+            WorkerSize         = $plan.Sku.Size
+            NumberOfWorkers    = $plan.Sku.Capacity
+            WebAppCount        = $appCount
+            WebAppNames        = $appNames
+        }
+    }
+}
+
+# Export results to CSV
+$results | Export-Csv -Path "AppServicePlansReport.csv" -NoTypeInformation -Encoding UTF8
+Write-Host "Report generated: AppServicePlansReport.csv" -ForegroundColor Green
